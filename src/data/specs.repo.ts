@@ -3,60 +3,62 @@ import { CarSpec, NewCarSpec } from '../models/spec';
 
 const RETURNING = `
   id,
-  engine_oil_viscosity,
-  engine_oil_quantity,
-  engine_oil_filter,
-  brake_fluid_type,
-  brake_pad,
-  brake_rotor,
-  tire_size,
-  tire_type,
-  transmission_fluid_type,
-  transmission_fluid_quantity,
-  coolant_type,
-  engine_air_filter,
-  cabin_air_filter,
-  wiper_blade_size,
-  headlight,
-  taillight,
-  brake_light,
-  turn_signal_light,
-  license_plate_light,
-  battery,
-  serpentine_belt,
-  thermostat,
+  engine_oil_viscosity_id,
+  engine_oil_quantity_id,
+  engine_oil_filter_id,
+  brake_fluid_type_id,
+  brake_pad_id,
+  brake_rotor_id,
+  tire_size_id,
+  tire_type_id,
+  transmission_fluid_type_id,
+  transmission_fluid_quantity_id,
+  coolant_type_id,
+  engine_air_filter_id,
+  cabin_air_filter_id,
+  wiper_blade_size_driver_id,
+  wiper_blade_size_passenger_id,
+  headlight_id,
+  taillight_id,
+  brake_light_id,
+  turn_signal_light_id,
+  license_plate_light_id,
+  battery_id,
+  serpentine_belt_id,
+  thermostat_id,
   license_plate_number,
   created_at AS "createdAt",
   updated_at AS "updatedAt"
 `;
 
 const UPDATABLE_COLUMNS: (keyof CarSpec)[] = [
-  'engine_oil_viscosity',
-  'engine_oil_quantity',
-  'engine_oil_filter',
-  'brake_fluid_type',
-  'brake_pad',
-  'brake_rotor',
-  'tire_size',
-  'tire_type',
-  'transmission_fluid_type',
-  'transmission_fluid_quantity',
-  'coolant_type',
-  'engine_air_filter',
-  'cabin_air_filter',
-  'wiper_blade_size',
-  'headlight',
-  'taillight',
-  'brake_light',
-  'turn_signal_light',
-  'license_plate_light',
-  'battery',
-  'serpentine_belt',
-  'thermostat',
+  'engine_oil_viscosity_id',
+  'engine_oil_quantity_id',
+  'engine_oil_filter_id',
+  'brake_fluid_type_id',
+  'brake_pad_id',
+  'brake_rotor_id',
+  'tire_size_id',
+  'tire_type_id',
+  'transmission_fluid_type_id',
+  'transmission_fluid_quantity_id',
+  'coolant_type_id',
+  'engine_air_filter_id',
+  'cabin_air_filter_id',
+  'wiper_blade_size_driver_id',
+  'wiper_blade_size_passenger_id',
+  'headlight_id',
+  'taillight_id',
+  'brake_light_id',
+  'turn_signal_light_id',
+  'license_plate_light_id',
+  'battery_id',
+  'serpentine_belt_id',
+  'thermostat_id',
   'license_plate_number',
 ];
 
-export async function getById(id: string): Promise<CarSpec | null> {
+export async function getById(id: number): Promise<CarSpec | null> {
   const sql = `
     SELECT
       ${RETURNING}
@@ -102,17 +104,37 @@ export async function create(data: NewCarSpec | {}): Promise<CarSpec> {
   return rows[0];
 }
 
-/** Partial update — only sets columns you pass; always bumps updated_at. */
-export async function update(id: string, patch: Partial<CarSpec>): Promise<CarSpec | null> {
+/** Partial update — only sets columns you pass; skips null-ish; always bumps updated_at. */
+export async function update(id: number, patch: Partial<CarSpec>, opts?: { allowNull?: boolean }): Promise<CarSpec | null> {
+  const allowNull = !!opts?.allowNull;
+
   const fields: string[] = [];
   const values: any[] = [];
   let i = 1;
 
   for (const col of UPDATABLE_COLUMNS) {
-    if (col in patch) {
-      fields.push(`${col} = $${i++}`);
-      values.push((patch as any)[col]);
+    if (!(col in patch)) continue; // not provided -> no change
+
+    const v = (patch as any)[col];
+
+    // Always skip undefined
+    if (v === undefined) continue;
+
+    // Skip empty-string and string 'null' unless we explicitly allow clearing
+    if ((v === '' || v === 'null') && !allowNull) continue;
+
+    // Handle real nulls: set to NULL only when allowNull=true; otherwise skip
+    if (v === null && !allowNull) continue;
+
+    // Optional: still support explicit clear token
+    if (v === '__clear__') {
+      fields.push(`${col} = NULL`);
+      continue;
     }
+
+    // Normal set (v may be null when allowNull=true)
+    fields.push(`${col} = $${i++}`);
+    values.push(v);
   }
 
   // nothing to change
@@ -133,7 +155,7 @@ export async function update(id: string, patch: Partial<CarSpec>): Promise<CarSp
   return rows[0] ?? null;
 }
 
-export async function remove(id: string): Promise<boolean> {
+export async function remove(id: number): Promise<boolean> {
   const { rowCount } = await query(`DELETE FROM car_specs WHERE id = $1`, [id]);
   return (rowCount ?? 0) > 0;
 }

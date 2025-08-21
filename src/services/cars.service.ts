@@ -3,6 +3,7 @@ import { Car, CarWithSpec, NewCar, UpdateCar } from '../models/car';
 import { CarSpec } from '../models/spec';
 import * as carsRepo from '../data/cars.repo';
 import * as specsRepo from '../data/specs.repo';
+import { expandSpec } from './spec-expand';
 
 function ensureObject(v: unknown) {
   if (v === null || typeof v !== 'object') {
@@ -60,7 +61,7 @@ export async function createWithBlankSpec(body: unknown): Promise<CarWithSpec> {
 }
 
 /* UPDATE: patch car fields and/or nested spec fields */
-export async function updateCarAndSpec(id: string, body: unknown): Promise<CarWithSpec | null> {
+export async function updateCarAndSpec(id: string, body: unknown, opts?: { allowNull?: boolean }): Promise<CarWithSpec | null> {
   ensureObject(body);
   const patch = body as UpdateCar;
 
@@ -79,7 +80,14 @@ export async function updateCarAndSpec(id: string, body: unknown): Promise<CarWi
       await carsRepo.update(id, { specId });
     }
 
-    await specsRepo.update(specId, patch.spec as Partial<CarSpec>);
+    // Only call update if specId is defined (should always be after above)
+    if (specId !== undefined && specId !== null) {
+      await specsRepo.update(specId, patch.spec as Partial<CarSpec>, { allowNull: !!opts?.allowNull });
+      const cleanSpec = sanitizeSpecPatch(patch.spec);
+      if (Object.keys(cleanSpec).length) {
+        await specsRepo.update(specId, cleanSpec as Partial<CarSpec>);
+      }
+    }
   }
 
   // apply car field patch (ignore spec)
@@ -104,4 +112,71 @@ export async function deleteCarAndSpec(id: string): Promise<boolean> {
   }
   const ok = await carsRepo.remove(id);
   return ok;
+}
+
+export async function getByVin(vin: string) {
+  const car = await carsRepo.getByVin(vin);
+  if (!car) return null;
+
+  const spec = car.specId ? await specsRepo.getById(car.specId) : null;
+
+  return { ...car, spec };
+}
+
+export async function filterCars(year?: string, make?: string, model?: string) {
+  const cars = await carsRepo.filterCars({ year, make, model });
+
+  return Promise.all(
+    cars.map(async (car) => ({
+      ...car,
+      spec: car.specId ? await specsRepo.getById(car.specId) : null,
+    }))
+  );
+}
+
+export async function getByLicensePlate(plate: string): Promise<CarWithSpec | null> {
+  const car = await carsRepo.getByLicensePlate(plate);
+  if (!car) return null;
+
+  const spec = car.specId ? await specsRepo.getById(car.specId) : null;
+  return { ...car, spec }; // ← don't mutate `car`; return a CarWithSpec
+}
+
+export async function getByIdWithOption(id: string, expandParts = false): Promise<CarWithSpec | null> {
+  const car = await carsRepo.getById(id);
+  if (!car) return null;
+
+  const rawSpec = car.specId ? await specsRepo.getById(car.specId) : null;
+  const spec = expandParts ? await expandSpec(rawSpec) : rawSpec;
+
+  return { ...car, spec } as CarWithSpec;
+}
+
+// You can mirror this for VIN and plate searches:
+export async function getByVinWithOption(vin: string, expandParts = false): Promise<CarWithSpec | null> {
+  const car = await carsRepo.getByVin(vin);
+  if (!car) return null;
+  const rawSpec = car.specId ? await specsRepo.getById(car.specId) : null;
+  const spec = expandParts ? await expandSpec(rawSpec) : rawSpec;
+  return { ...car, spec } as CarWithSpec;
+}
+
+export async function getByLicensePlateWithOption(plate: string, expandParts = false): Promise<CarWithSpec | null> {
+  const car = await carsRepo.getByLicensePlate(plate);
+  if (!car) return null;
+  const rawSpec = car.specId ? await specsRepo.getById(car.specId) : null;
+  const spec = expandParts ? await expandSpec(rawSpec) : rawSpec;
+  return { ...car, spec } as CarWithSpec;
+}
+
+//sanitizer for spec update
+const NULLISH = new Set([null, undefined, '', 'null']);
+
+function sanitizeSpecPatch(patch: Partial<CarSpec>): Partial<CarSpec> {
+  const clean: Partial<CarSpec> = {};
+  for (const [k, v] of Object.entries(patch ?? {})) {
+    if (NULLISH.has(v as any)) continue; // treat null-ish as "no change"
+    clean[k as keyof CarSpec] = v as any;
+  }
+  return clean;
 }

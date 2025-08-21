@@ -1,6 +1,6 @@
 //shape of any given part table
 export interface Part {
-  id: string;
+  id: number;
   data: string;
 
   createdAt: string; // ISO

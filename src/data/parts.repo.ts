@@ -9,6 +9,7 @@ const ALLOWED_PART_TABLES = new Set<string>([
   'battery',
   'brake_fluid_type',
   'brake_pad',
+  'brake_light',
   'brake_rotor',
   'cabin_air_filter',
   'camshaft_position_sensor',

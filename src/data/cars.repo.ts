@@ -37,7 +37,7 @@ export async function create(data: {
   mileage?: string | null;
   trim?: string | null;
   notes?: string | null;
-  specId?: string | null;
+  specId?: number | null;
 }): Promise<Car> {
   const sql = `
     INSERT INTO cars (
@@ -109,4 +109,50 @@ export async function update(id: string, patch: Partial<Car>): Promise<Car | nul
 export async function remove(id: string): Promise<boolean> {
   const { rowCount } = await query(`DELETE FROM cars WHERE id = $1`, [id]);
   return rowCount! > 0;
+}
+
+export async function getByVin(vin: string) {
+  const sql = `
+    SELECT * FROM cars
+    WHERE vin = $1
+    LIMIT 1
+  `;
+  const { rows } = await query<Car>(sql, [vin]);
+  return rows[0] ?? null;
+}
+
+export async function filterCars(filters: { year?: string; make?: string; model?: string }) {
+  const conditions: string[] = [];
+  const values: any[] = [];
+  let i = 1;
+
+  if (filters.year) {
+    conditions.push(`year = $${i++}`);
+    values.push(filters.year);
+  }
+  if (filters.make) {
+    conditions.push(`make ILIKE $${i++}`);
+    values.push(filters.make);
+  }
+  if (filters.model) {
+    conditions.push(`model ILIKE $${i++}`);
+    values.push(filters.model);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const { rows } = await query<Car>(`SELECT * FROM cars ${where}`, values);
+  return rows;
+}
+
+export async function getByLicensePlate(plate: string) {
+  const sql = `
+    SELECT c.*
+    FROM cars c
+    JOIN car_specs s ON c.spec_id = s.id
+    WHERE s.license_plate_number = $1
+    LIMIT 1
+  `;
+  const { rows } = await query<Car>(sql, [plate]);
+  return rows[0] ?? null;
 }

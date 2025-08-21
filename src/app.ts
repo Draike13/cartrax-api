@@ -5,7 +5,15 @@ import carsRouter from './routes/cars.routes';
 import partsRouter from './routes/parts.routes';
 
 const app = express();
-app.use(cors());
+// 🔓 Dev CORS — allow Angular at 4200
+app.use(
+  cors({
+    origin: 'http://localhost:4200', // your Angular dev server
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false, // set true only if you use cookies/auth headers cross-site
+  })
+);
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'cartrax-api' }));

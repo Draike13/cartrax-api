@@ -2,7 +2,7 @@ import { CarSpec } from './spec';
 import { UpdateCarSpec } from './spec';
 
 export interface Car {
-  id: string;
+  id: number;
   year: number;
   make: string;
   model: string;
@@ -13,7 +13,7 @@ export interface Car {
   vin?: string | null;
 
   //linked spec from CarSpec
-  specId?: string | null;
+  specId?: number | null;
 
   //created timestamps
   createdAt: string; // ISO
